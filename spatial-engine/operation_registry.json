@@ -1,0 +1,351 @@
+{
+  "registry_name": "GeoSentinel GIS Operation Registry",
+  "version": "0.4",
+  "description": "Controlled catalogue of GIS operations available to GeoSentinel AI agents.",
+  "execution_enabled": false,
+  "operations": [
+    {
+      "id": "buffer",
+      "name": "Buffer",
+      "category": "vector_analysis",
+      "arcgis_tool": "analysis.Buffer",
+      "description": "Creates buffer polygons around input features.",
+      "inputs": [
+        {
+          "name": "input_features",
+          "type": "feature_layer",
+          "required": true
+        }
+      ],
+      "parameters": [
+        {
+          "name": "distance",
+          "type": "string",
+          "required": true,
+          "example": "500 Meters"
+        },
+        {
+          "name": "dissolve_option",
+          "type": "string",
+          "required": false,
+          "allowed_values": ["NONE", "ALL"]
+        }
+      ],
+      "output": {
+        "type": "feature_class"
+      },
+      "required_extensions_any_of": [],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "low"
+    },
+    {
+      "id": "clip",
+      "name": "Clip",
+      "category": "vector_analysis",
+      "arcgis_tool": "analysis.Clip",
+      "description": "Extracts input features within the boundary of another feature layer.",
+      "inputs": [
+        {
+          "name": "input_features",
+          "type": "feature_layer",
+          "required": true
+        },
+        {
+          "name": "clip_features",
+          "type": "polygon_layer",
+          "required": true
+        }
+      ],
+      "parameters": [],
+      "output": {
+        "type": "feature_class"
+      },
+      "required_extensions_any_of": [],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "low"
+    },
+    {
+      "id": "spatial_join",
+      "name": "Spatial Join",
+      "category": "vector_analysis",
+      "arcgis_tool": "analysis.SpatialJoin",
+      "description": "Joins attributes between features based on their spatial relationship.",
+      "inputs": [
+        {
+          "name": "target_features",
+          "type": "feature_layer",
+          "required": true
+        },
+        {
+          "name": "join_features",
+          "type": "feature_layer",
+          "required": true
+        }
+      ],
+      "parameters": [
+        {
+          "name": "match_option",
+          "type": "string",
+          "required": true,
+          "allowed_values": [
+            "INTERSECT",
+            "WITHIN",
+            "CONTAINS",
+            "CLOSEST",
+            "WITHIN_A_DISTANCE"
+          ]
+        }
+      ],
+      "output": {
+        "type": "feature_class"
+      },
+      "required_extensions_any_of": [],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "low"
+    },
+    {
+      "id": "project_vector",
+      "name": "Project Vector",
+      "category": "coordinate_transformation",
+      "arcgis_tool": "management.Project",
+      "description": "Projects vector data into a specified coordinate system.",
+      "inputs": [
+        {
+          "name": "input_dataset",
+          "type": "feature_layer",
+          "required": true
+        }
+      ],
+      "parameters": [
+        {
+          "name": "target_coordinate_system",
+          "type": "spatial_reference",
+          "required": true
+        },
+        {
+          "name": "geographic_transformation",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "feature_class"
+      },
+      "required_extensions_any_of": [],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "medium"
+    },
+    {
+      "id": "project_raster",
+      "name": "Project Raster",
+      "category": "coordinate_transformation",
+      "arcgis_tool": "management.ProjectRaster",
+      "description": "Projects raster data into a specified coordinate system.",
+      "inputs": [
+        {
+          "name": "input_raster",
+          "type": "raster_layer",
+          "required": true
+        }
+      ],
+      "parameters": [
+        {
+          "name": "target_coordinate_system",
+          "type": "spatial_reference",
+          "required": true
+        },
+        {
+          "name": "resampling_method",
+          "type": "string",
+          "required": true,
+          "allowed_values": [
+            "NEAREST",
+            "BILINEAR",
+            "CUBIC",
+            "MAJORITY"
+          ]
+        },
+        {
+          "name": "cell_size",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "raster_dataset"
+      },
+      "required_extensions_any_of": [],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "medium"
+    },
+    {
+      "id": "extract_values_to_points",
+      "name": "Extract Values to Points",
+      "category": "raster_analysis",
+      "arcgis_tool": "sa.ExtractValuesToPoints",
+      "description": "Extracts raster cell values at point locations.",
+      "inputs": [
+        {
+          "name": "input_points",
+          "type": "point_layer",
+          "required": true
+        },
+        {
+          "name": "input_raster",
+          "type": "raster_layer",
+          "required": true
+        }
+      ],
+      "parameters": [],
+      "output": {
+        "type": "feature_class"
+      },
+      "required_extensions_any_of": [
+        "Spatial Analyst"
+      ],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "medium"
+    },
+    {
+      "id": "slope",
+      "name": "Slope",
+      "category": "terrain_analysis",
+      "arcgis_tool": "sa.Slope",
+      "description": "Calculates the slope of a terrain raster.",
+      "inputs": [
+        {
+          "name": "input_surface",
+          "type": "raster_layer",
+          "required": true
+        }
+      ],
+      "parameters": [
+        {
+          "name": "output_measurement",
+          "type": "string",
+          "required": true,
+          "allowed_values": ["DEGREE", "PERCENT_RISE"]
+        }
+      ],
+      "output": {
+        "type": "raster_dataset"
+      },
+      "required_extensions_any_of": [
+        "Spatial Analyst"
+      ],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "medium"
+    },
+    {
+      "id": "aspect",
+      "name": "Aspect",
+      "category": "terrain_analysis",
+      "arcgis_tool": "sa.Aspect",
+      "description": "Calculates the compass direction of terrain slope.",
+      "inputs": [
+        {
+          "name": "input_surface",
+          "type": "raster_layer",
+          "required": true
+        }
+      ],
+      "parameters": [],
+      "output": {
+        "type": "raster_dataset"
+      },
+      "required_extensions_any_of": [
+        "Spatial Analyst"
+      ],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "medium"
+    },
+    {
+      "id": "hillshade",
+      "name": "Hillshade",
+      "category": "terrain_analysis",
+      "arcgis_tool": "sa.Hillshade",
+      "description": "Creates a shaded relief raster from elevation data.",
+      "inputs": [
+        {
+          "name": "input_surface",
+          "type": "raster_layer",
+          "required": true
+        }
+      ],
+      "parameters": [
+        {
+          "name": "azimuth",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "altitude",
+          "type": "number",
+          "required": false
+        }
+      ],
+      "output": {
+        "type": "raster_dataset"
+      },
+      "required_extensions_any_of": [
+        "Spatial Analyst"
+      ],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "low"
+    },
+    {
+      "id": "zonal_statistics",
+      "name": "Zonal Statistics",
+      "category": "raster_analysis",
+      "arcgis_tool": "sa.ZonalStatisticsAsTable",
+      "description": "Summarizes raster values within defined zones.",
+      "inputs": [
+        {
+          "name": "zone_dataset",
+          "type": "feature_layer",
+          "required": true
+        },
+        {
+          "name": "value_raster",
+          "type": "raster_layer",
+          "required": true
+        }
+      ],
+      "parameters": [
+        {
+          "name": "statistics_type",
+          "type": "string",
+          "required": true,
+          "allowed_values": [
+            "MEAN",
+            "SUM",
+            "MIN",
+            "MAX",
+            "RANGE",
+            "STD",
+            "COUNT",
+            "ALL"
+          ]
+        }
+      ],
+      "output": {
+        "type": "table"
+      },
+      "required_extensions_any_of": [
+        "Spatial Analyst"
+      ],
+      "approval_required": true,
+      "modifies_input": false,
+      "risk_level": "medium"
+    }
+  ]
+}
