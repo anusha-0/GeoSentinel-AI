@@ -1,32 +1,161 @@
-# Visual Studio
-.vs/
-*.user
-*.suo
+# ==========================================
+# GEOSENTINEL AI - GIT IGNORE
+# ==========================================
 
-# Python
+# Python cache
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Python environments
 .venv/
+.venv-*/
 venv/
 env/
+ENV/
+.conda/
 
-# Environment variables
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
 
-# Node
+# Node.js
 node_modules/
 dist/
 build/
+.next/
+.nuxt/
+coverage/
 
-# Logs
+# IDEs and editors
+.vscode/
+.idea/
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Windows and macOS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs and temporary files
 *.log
+logs/
+tmp/
+temp/
+*.tmp
+*.bak
 
-# GIS data
+# ==========================================
+# ARCGIS PRO AND GEOSPATIAL DATA
+# ==========================================
+
+# File geodatabases
+*.gdb/
+
+# Enterprise geodatabase connection files
+*.sde
+
+# ArcGIS Pro project files (local working projects)
+*.aprx
+*.aprx.lock
+
+# ArcGIS layer and map files
+# Keep these trackable when intentionally used as project assets.
+# *.lyrx
+# *.mapx
+
+# ArcGIS Pro lock and temporary files
+*.lock
+*.sr.lock
+
+# ArcGIS cache and temporary workspaces
+*.gdb-wal
+*.gdb-shm
+scratch/
+scratch.gdb/
+
+# Geospatial datasets - local working data
 data/raw/*
 data/processed/*
 
-# Sensitive GIS connections
-*.sde
+# Preserve folder structure
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Large raster and imagery files
+*.tif
+*.tiff
+*.img
+*.jp2
+*.vrt
+*.grd
+
+# Large vector datasets
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.gpkg
+*.fgdb
+
+# ArcGIS export and interchange files
+*.lyrx.lock
+*.mapx.lock
+
+# ==========================================
+# RUNTIME AND EXECUTION
+# ==========================================
+
+# Local execution bridge files
+runtime/bridge/*.json
+
+# Job queues and temporary outputs
+mcp-server/jobs/*
+mcp-server/tools/__pycache__/
+
+# Preserve directory structure
+!mcp-server/jobs/.gitkeep
+!mcp-server/tools/.gitkeep
+
+# Local databases and vector indexes
+*.sqlite
+*.sqlite3
+*.db
+qdrant_storage/
+chroma_db/
+
+# ==========================================
+# BUILD AND DISTRIBUTION
+# ==========================================
+
+*.egg-info/
+.eggs/
+wheels/
+pip-wheel-metadata/
+*.whl
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Local configuration
+*.local.json
+*.local.yaml
+*.local.yml
