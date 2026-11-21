@@ -188,67 +188,151 @@ def inspect_feature_class(
 
 def validate_geometry(dataset_path):
 
-    check_table = None
+    import os
+    import uuid
 
-    # Preserve existing ArcGIS Pro environment setting
+    check_table = None
+    cleanup_warnings = []
+
+    # Preserve existing ArcGIS Pro environment
     previous_add_outputs = arcpy.env.addOutputsToMap
 
     try:
 
-        # Prevent temporary outputs from appearing in Contents
+        # Prevent automatic map additions
         arcpy.env.addOutputsToMap = False
 
         scratch_gdb = arcpy.env.scratchGDB
 
         if not scratch_gdb or not arcpy.Exists(scratch_gdb):
+
             raise RuntimeError(
                 "ArcGIS scratch geodatabase is unavailable."
             )
 
-        table_name = "GS_Geometry_Check_" + uuid.uuid4().hex[:8]
+        table_name = (
+            "GS_Geometry_Check_" + uuid.uuid4().hex[:8]
+        )
 
         check_table = os.path.join(
             scratch_gdb,
             table_name
         )
 
+        # Execute geometry validation
         arcpy.management.CheckGeometry(
             dataset_path,
             check_table,
             "ESRI"
         )
 
+        # Independently retrieve issue count
         issue_count = int(
             arcpy.management.GetCount(check_table)[0]
         )
 
-        return create_check(
-            check_name="geometry_validity",
-            status="PASS" if issue_count == 0 else "FAIL",
-            message=(
-                "No geometry problems detected."
-                if issue_count == 0
-                else "Geometry problems were detected."
-            ),
-            expected=0,
-            actual=issue_count
+        geometry_status = (
+            "PASS" if issue_count == 0 else "FAIL"
+        )
+
+        geometry_message = (
+            "No geometry problems detected."
+            if issue_count == 0
+            else "Geometry problems were detected."
         )
 
     except Exception as error:
 
-        return create_check(
-            check_name="geometry_validity",
-            status="NOT_RUN",
-            message="Geometry validation could not be completed: {}".format(
+        geometry_status = "NOT_RUN"
+
+        geometry_message = (
+            "Geometry validation could not be completed: {}".format(
                 error
             )
         )
 
+        issue_count = None
+
     finally:
 
-        if check_table and arcpy.Exists(check_table):
+        # ---------------------------------------------
+        # 1. REMOVE TEMPORARY TABLE REFERENCES
+        # ---------------------------------------------
 
-            arcpy.management.Delete(check_table)
+        if check_table:
 
-        # Restore original ArcGIS Pro setting
+            try:
+
+                aprx = arcpy.mp.ArcGISProject("CURRENT")
+
+                for map_obj in aprx.listMaps():
+
+                    for table in map_obj.listTables():
+
+                        if table.name == table_name:
+
+                            map_obj.removeTable(table)
+
+                            print(
+                                "Removed temporary table reference: {}".format(
+                                    table.name
+                                )
+                            )
+
+            except Exception as cleanup_error:
+
+                cleanup_warnings.append(
+                    "Map reference cleanup failed: {}".format(
+                        cleanup_error
+                    )
+                )
+
+            # -----------------------------------------
+            # 2. DELETE PHYSICAL TEMPORARY DATASET
+            # -----------------------------------------
+
+            try:
+
+                if arcpy.Exists(check_table):
+
+                    arcpy.management.Delete(check_table)
+
+                    print(
+                        "Deleted temporary geometry table: {}".format(
+                            table_name
+                        )
+                    )
+
+            except Exception as cleanup_error:
+
+                cleanup_warnings.append(
+                    "Temporary dataset cleanup failed: {}".format(
+                        cleanup_error
+                    )
+                )
+
+        # ---------------------------------------------
+        # 3. RESTORE ORIGINAL ENVIRONMENT
+        # ---------------------------------------------
+
         arcpy.env.addOutputsToMap = previous_add_outputs
+
+    if cleanup_warnings:
+
+        geometry_message += " Cleanup warning: " + "; ".join(
+            cleanup_warnings
+        )
+
+    result = create_check(
+        check_name="geometry_validity",
+        status=geometry_status,
+        message=geometry_message,
+        expected=0,
+        actual=issue_count
+    )
+
+    if cleanup_warnings and geometry_status == "PASS":
+
+        result["cleanup_status"] = "WARNING"
+
+    return result
