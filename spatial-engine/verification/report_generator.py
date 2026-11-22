@@ -1,6 +1,6 @@
 """
 GeoSentinel AI
-GIS Verification Report Generator v0.7
+GIS Verification Report Generator v0.8.6
 
 Responsible for:
 - Building structured verification reports.
@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 
 APPLICATION_NAME = "GeoSentinel AI"
-VERIFICATION_VERSION = "0.7.0"
+VERIFICATION_VERSION = "0.8.6"
 
 
 class VerificationReportGenerator:
@@ -124,7 +124,9 @@ class VerificationReportGenerator:
         job_id,
         operation_id,
         execution_status,
-        output_details=None
+        output_details=None,
+        workflow_id=None,
+        approval_id=None
     ):
 
         verification_status = self.determine_status()
@@ -136,6 +138,10 @@ class VerificationReportGenerator:
             "verification_version": VERIFICATION_VERSION,
 
             "job_id": job_id,
+
+            "workflow_id": workflow_id,
+
+            "approval_id": approval_id,
 
             "operation_id": operation_id,
 

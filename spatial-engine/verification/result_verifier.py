@@ -1,10 +1,8 @@
 """
-GeoSentinel AI
-GIS Result Verification Engine v0.7
+GeoSentinel AI - GIS Result Verification Engine v0.8.6
 
-Independently verifies ArcGIS Pro execution results.
-
-Runs inside ArcGIS Pro Python 3.13.
+Runs ONLY inside ArcGIS Pro Python. It independently verifies the latest
+approved_job.json against execution_result.json and inspects the real output.
 """
 
 import arcpy
@@ -13,371 +11,218 @@ import os
 
 from verification.verification_rules import (
     inspect_feature_class,
-    validate_geometry
+    validate_geometry,
 )
-
-from verification.report_generator import (
-    VerificationReportGenerator
-)
+from verification.report_generator import VerificationReportGenerator
 
 
 BRIDGE_DIR = r"D:\GeoSentinel-AI\runtime\bridge"
-
-JOB_FILE = os.path.join(
-    BRIDGE_DIR,
-    "approved_job.json"
-)
-
-EXECUTION_RESULT_FILE = os.path.join(
-    BRIDGE_DIR,
-    "execution_result.json"
-)
-
-REPORT_FILE = os.path.join(
-    BRIDGE_DIR,
-    "verification_report.json"
-)
+JOB_FILE = os.path.join(BRIDGE_DIR, "approved_job.json")
+EXECUTION_RESULT_FILE = os.path.join(BRIDGE_DIR, "execution_result.json")
+REPORT_FILE = os.path.join(BRIDGE_DIR, "verification_report.json")
 
 
 class GISResultVerifier:
-
     def __init__(self):
-
         self.generator = VerificationReportGenerator()
-
-    # -------------------------------------------------
-    # LOAD JSON
-    # -------------------------------------------------
 
     @staticmethod
     def load_json(path):
-
         if not os.path.exists(path):
-
-            raise FileNotFoundError(
-                "Required file not found: {}".format(path)
-            )
-
+            raise FileNotFoundError("Required file not found: {}".format(path))
         with open(path, "r", encoding="utf-8") as file:
-
             return json.load(file)
-
-    # -------------------------------------------------
-    # NORMALIZE VALUES
-    # -------------------------------------------------
 
     @staticmethod
     def normalize(value):
-
         if isinstance(value, str):
             return " ".join(value.strip().lower().split())
-
         return value
 
-    # -------------------------------------------------
-    # ADD CHECK
-    # -------------------------------------------------
-
-    def add_check(self, check):
-
+    def add_check(self, name, passed, message, expected, actual):
         self.generator.add_check(
-            check_name=check["check"],
-            status=check["status"],
-            message=check["message"],
-            expected=check.get("expected"),
-            actual=check.get("actual")
+            name, "PASS" if passed else "FAIL", message, expected, actual
         )
-
-    # -------------------------------------------------
-    # VERIFY JOB ID
-    # -------------------------------------------------
-
-    def verify_job_identity(self, job, execution):
-
-        expected = job.get("job_id")
-        actual = execution.get("job_id")
-
-        matched = expected == actual
-
-        self.generator.add_check(
-            "job_identity",
-            "PASS" if matched else "FAIL",
-            "Job identifiers match."
-            if matched else "Job identifiers do not match.",
-            expected,
-            actual
-        )
-
-    # -------------------------------------------------
-    # VERIFY EXECUTION STATUS
-    # -------------------------------------------------
-
-    def verify_execution_status(self, execution):
-
-        status = execution.get("status")
-
-        passed = status == "SUCCESS"
-
-        self.generator.add_check(
-            "execution_status",
-            "PASS" if passed else "FAIL",
-            "GIS execution completed successfully."
-            if passed else "GIS execution was unsuccessful.",
-            "SUCCESS",
-            status
-        )
-
-        return passed
-
-    # -------------------------------------------------
-    # VERIFY APPROVED PARAMETERS
-    # -------------------------------------------------
-
-    def verify_parameters(self, job, execution):
-
-        requested = job.get("parameters", {})
-        actual = execution.get("details", {})
-
-        comparisons = [
-            (
-                "buffer_distance",
-                requested.get("distance"),
-                actual.get("buffer_distance")
-            ),
-            (
-                "dissolve_option",
-                requested.get("dissolve_option", "NONE"),
-                actual.get("dissolve_option")
-            )
-        ]
-
-        for name, expected, received in comparisons:
-
-            matched = (
-                self.normalize(expected)
-                == self.normalize(received)
-            )
-
-            self.generator.add_check(
-                name,
-                "PASS" if matched else "FAIL",
-                "Execution metadata matches approved request."
-                if matched else "Execution metadata mismatch.",
-                expected,
-                received
-            )
-
-    # -------------------------------------------------
-    # VERIFY OUTPUT PATH
-    # -------------------------------------------------
-
-    def verify_output_path(self, job, execution, aprx):
-
-        output_gdb = aprx.defaultGeodatabase
-
-        expected_path = os.path.normcase(
-            os.path.normpath(
-                os.path.join(
-                    output_gdb,
-                    job["output_name"]
-                )
-            )
-        )
-
-        actual_path = os.path.normcase(
-            os.path.normpath(
-                execution.get("output_path", "")
-            )
-        )
-
-        matched = expected_path == actual_path
-
-        self.generator.add_check(
-            "output_path",
-            "PASS" if matched else "FAIL",
-            "Output path matches approved destination."
-            if matched else "Output path mismatch.",
-            expected_path,
-            actual_path
-        )
-
-        return expected_path if matched else None
-
-    # -------------------------------------------------
-    # MAIN VERIFICATION
-    # -------------------------------------------------
 
     def verify(self):
-
+        # A new generator per run prevents checks leaking between reports.
+        self.generator = VerificationReportGenerator()
         job = self.load_json(JOB_FILE)
-
-        execution = self.load_json(
-            EXECUTION_RESULT_FILE
-        )
+        execution = self.load_json(EXECUTION_RESULT_FILE)
 
         job_id = job.get("job_id")
-
         operation_id = job.get("operation_id")
+        execution_status = execution.get("status", "UNKNOWN")
 
-        self.verify_job_identity(job, execution)
-
-        execution_success = self.verify_execution_status(
-            execution
+        identity_ok = bool(job_id) and job_id == execution.get("job_id")
+        self.add_check(
+            "job_identity",
+            identity_ok,
+            "Job identifiers match." if identity_ok
+            else "Approved job and execution result refer to different jobs.",
+            job_id,
+            execution.get("job_id"),
         )
 
-        # Stop if execution failed or job identity is invalid.
-        if (
-            not execution_success
-            or job_id != execution.get("job_id")
-        ):
+        approval_ok = (
+            job.get("approval_status") == "APPROVED"
+            and bool(job.get("approval_id"))
+        )
+        self.add_check(
+            "approval_status",
+            approval_ok,
+            "Approved job has an approval ID." if approval_ok
+            else "Job approval is missing or invalid.",
+            "APPROVED with approval_id",
+            {
+                "approval_status": job.get("approval_status"),
+                "approval_id": job.get("approval_id"),
+            },
+        )
 
+        execution_ok = execution_status == "SUCCESS"
+        self.add_check(
+            "execution_status",
+            execution_ok,
+            "GIS execution completed successfully." if execution_ok
+            else "GIS execution was unsuccessful.",
+            "SUCCESS",
+            execution_status,
+        )
+
+        if not (identity_ok and approval_ok and execution_ok):
             report = self.generator.generate_report(
-                job_id,
-                operation_id,
-                execution.get("status", "UNKNOWN")
+                job_id, operation_id, execution_status,
+                workflow_id=job.get("workflow_id"), approval_id=job.get("approval_id")
             )
-
-            self.generator.save_report(
-                report,
-                REPORT_FILE
-            )
-
-            return report
-
-        if job.get("approval_status") != "APPROVED":
-
-            self.generator.add_check(
-                "approval_status",
-                "FAIL",
-                "Original job is not approved.",
-                "APPROVED",
-                job.get("approval_status")
-            )
-
-            report = self.generator.generate_report(
-                job_id,
-                operation_id,
-                execution.get("status")
-            )
-
             self.generator.save_report(report, REPORT_FILE)
-
             return report
 
-        # Currently supported verification operation.
         if operation_id != "buffer":
-
             self.generator.add_check(
                 "operation_support",
                 "NOT_RUN",
                 "Verification is not implemented for this operation.",
                 "buffer",
-                operation_id
-            )
-
-            report = self.generator.generate_report(
-                job_id,
                 operation_id,
-                execution.get("status")
             )
-
+            report = self.generator.generate_report(
+                job_id, operation_id, execution_status,
+                workflow_id=job.get("workflow_id"), approval_id=job.get("approval_id")
+            )
             self.generator.save_report(report, REPORT_FILE)
-
             return report
 
-        self.verify_parameters(job, execution)
+        requested = job.get("parameters", {})
+        actual_details = execution.get("details", {})
+
+        for check_name, expected, actual in [
+            (
+                "buffer_distance",
+                requested.get("distance"),
+                actual_details.get("buffer_distance"),
+            ),
+            (
+                "dissolve_option",
+                requested.get("dissolve_option", "NONE"),
+                actual_details.get("dissolve_option"),
+            ),
+        ]:
+            matched = self.normalize(expected) == self.normalize(actual)
+            self.add_check(
+                check_name,
+                matched,
+                "Execution metadata matches approved request."
+                if matched else "Execution metadata mismatch.",
+                expected,
+                actual,
+            )
 
         aprx = arcpy.mp.ArcGISProject("CURRENT")
+        output_gdb = aprx.defaultGeodatabase
 
-        output_path = self.verify_output_path(
-            job,
-            execution,
-            aprx
+        output_name = job.get("output_name")
+        # Output names must be a single geodatabase item, not a path.
+        safe_output_name = (
+            isinstance(output_name, str)
+            and bool(output_name.strip())
+            and os.path.basename(output_name) == output_name
+            and "/" not in output_name
+            and "\\" not in output_name
+        )
+
+        expected_path = (
+            os.path.normcase(os.path.normpath(os.path.join(output_gdb, output_name)))
+            if safe_output_name else ""
+        )
+        actual_path = os.path.normcase(
+            os.path.normpath(execution.get("output_path") or "")
+        )
+        path_ok = bool(expected_path and actual_path) and expected_path == actual_path
+
+        self.add_check(
+            "output_path",
+            path_ok,
+            "Output path matches approved destination."
+            if path_ok else "Output path does not match the approved destination.",
+            expected_path or "A valid geodatabase dataset name",
+            actual_path,
         )
 
         output_details = {}
-
-        if output_path:
-
+        if path_ok:
             checks, output_details = inspect_feature_class(
-                output_path,
-                expected_geometry_type="Polygon"
+                expected_path, expected_geometry_type="Polygon"
             )
-
             for check in checks:
-                self.add_check(check)
+                self.generator.add_check(
+                    check["check"],
+                    check["status"],
+                    check["message"],
+                    check.get("expected"),
+                    check.get("actual"),
+                )
 
-            # Independent geometry validation.
-            geometry_check = validate_geometry(
-                output_path
+            geometry_check = validate_geometry(expected_path)
+            self.generator.add_check(
+                geometry_check["check"],
+                geometry_check["status"],
+                geometry_check["message"],
+                geometry_check.get("expected"),
+                geometry_check.get("actual"),
             )
-
-            self.add_check(geometry_check)
-
+            if geometry_check.get("cleanup_status") == "WARNING":
+                self.generator.add_check(
+                    "temporary_table_cleanup",
+                    "WARNING",
+                    "Geometry validation completed, but temporary diagnostic cleanup reported a warning.",
+                    "No temporary geometry-check table or map reference remains",
+                    geometry_check.get("message"),
+                )
         else:
-
             self.generator.add_check(
                 "dataset_inspection",
                 "NOT_RUN",
-                "Dataset inspection skipped because output path validation failed."
+                "Dataset inspection skipped because output path validation failed.",
+                expected_path,
+                actual_path,
             )
 
-        # Generate final report.
         report = self.generator.generate_report(
-            job_id=job_id,
-            operation_id=operation_id,
-            execution_status=execution.get("status"),
-            output_details=output_details
+            job_id, operation_id, execution_status, output_details,
+            workflow_id=job.get("workflow_id"), approval_id=job.get("approval_id")
         )
-
-        self.generator.save_report(
-            report,
-            REPORT_FILE
-        )
-
+        self.generator.save_report(report, REPORT_FILE)
         return report
 
 
-# -----------------------------------------------------
-# EXECUTION
-# -----------------------------------------------------
-
 def main():
-
-    print(
-        "\n========== GEOSENTINEL RESULT VERIFICATION v0.7 ==========\n"
-    )
-
+    print("\n========== GEOSENTINEL RESULT VERIFICATION v0.8.6 ==========\n")
     verifier = GISResultVerifier()
-
-    try:
-
-        report = verifier.verify()
-
-        print(
-            json.dumps(
-                report,
-                indent=4
-            )
-        )
-
-        print(
-            "\nVerification report saved:"
-        )
-
-        print(REPORT_FILE)
-
-    except Exception as error:
-
-        print(
-            "\nVERIFICATION ENGINE ERROR:"
-        )
-
-        print(str(error))
-
-        raise
+    report = verifier.verify()
+    print(json.dumps(report, indent=4))
+    print("\nVerification report saved: {}".format(REPORT_FILE))
 
 
 if __name__ == "__main__":
-
     main()

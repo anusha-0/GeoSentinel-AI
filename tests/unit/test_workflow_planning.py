@@ -10,45 +10,37 @@ from agents.planning_agent import GISPlanningAgent
 from agents.workflow_validator import WorkflowValidator
 
 
-def main():
+REQUEST = (
+    "Create a 500-meter buffer around settlements "
+    "and dissolve overlapping buffers."
+)
+
+
+def test_planner_generates_expected_buffer_workflow():
 
     agent = GISPlanningAgent()
-    validator = WorkflowValidator()
 
-    request = (
-        "Create a 500-meter buffer around settlements "
-        "and dissolve overlapping buffers."
-    )
-
-    workflow = agent.plan(request)
-
-    workflow_dict = workflow.model_dump(mode="json")
-
-    print("\n========== GEOSENTINEL WORKFLOW PLAN ==========\n")
-
-    print(workflow.model_dump_json(indent=4))
-
-    print("\n========== WORKFLOW VALIDATION ==========\n")
-
-    result = validator.validate(workflow_dict)
-
-    print(result)
+    workflow = agent.plan(REQUEST)
 
     assert workflow.workflow_id.startswith("GS-WF-")
     assert workflow.steps[0].operation_id == "buffer"
     assert workflow.steps[0].parameters["distance"] == "500 Meters"
     assert workflow.steps[0].parameters["dissolve_option"] == "ALL"
 
-    # Validation should fail because input layer is not selected yet.
+
+def test_unresolved_input_fails_workflow_validation():
+
+    agent = GISPlanningAgent()
+    validator = WorkflowValidator()
+
+    workflow = agent.plan(REQUEST)
+    workflow_dict = workflow.model_dump(mode="json")
+
+    result = validator.validate(workflow_dict)
+
     assert result["valid"] is False
+
     assert any(
-    "requires user selection" in error
-    for error in result["errors"]
-)
-
-    print("\nTEST PASSED: Planner generated the expected workflow.")
-    print("Expected validation failure: input layer requires selection.")
-
-
-if __name__ == "__main__":
-    main()
+        "requires user selection" in error
+        for error in result["errors"]
+    )
