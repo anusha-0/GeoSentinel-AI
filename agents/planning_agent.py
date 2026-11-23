@@ -1,4 +1,3 @@
-
 import re
 import uuid
 import sys
@@ -20,46 +19,80 @@ from operation_registry import OperationRegistry
 
 class GISPlanningAgent:
 
+    PLANNER_VERSION = "0.3.0"
     DEFAULT_OUTPUT_NAME = "GS_Buffer_Output"
 
-    def __init__(self):
-        self.registry = OperationRegistry()
+    DATASET_NAME_PATTERN = r"[A-Za-z][A-Za-z0-9_]{0,63}"
 
-    @staticmethod
-    def extract_output_name(request: str) -> str:
-        """
-        Extract an explicitly requested output dataset name.
+    @classmethod
+    def _validate_dataset_name(cls, name: str) -> str:
 
-        Supported examples:
-        - GS_Buffer_Test as the output
-        - output name: GS_Buffer_Test
-        - output: GS_Buffer_Test
-        - save as GS_Buffer_Test
-        """
+        if not re.fullmatch(cls.DATASET_NAME_PATTERN, name):
+            raise ValueError(
+                f"Invalid dataset name: {name}. "
+                "Names must start with a letter and contain "
+                "only letters, numbers and underscores, "
+                "with a maximum length of 63 characters."
+            )
+
+        return name
+
+    @classmethod
+    def extract_input_name(cls, request: str):
 
         patterns = [
-            r"\b([A-Za-z][A-Za-z0-9_]*)\s+as\s+(?:the\s+)?output\b",
-            r"\boutput(?:\s+name)?\s*(?:is|:|=)\s*([A-Za-z][A-Za-z0-9_]*)\b",
-            r"\bsave\s+(?:it\s+)?as\s+([A-Za-z][A-Za-z0-9_]*)\b",
+            rf"\buse\s+({cls.DATASET_NAME_PATTERN})\s+as\s+(?:the\s+)?input\b",
+
+            rf"\binput(?:\s+features?|\s+dataset)?\s*[:=]\s*({cls.DATASET_NAME_PATTERN})\b",
+
+            rf"\b(?:run|perform|execute)\s+(?:the\s+)?(?:buffer|analysis)\s+(?:on|using)\s+({cls.DATASET_NAME_PATTERN})\b",
+
+            rf"\buse\s+(?:the\s+)?(?:layer|dataset|feature\s+class)\s+({cls.DATASET_NAME_PATTERN})\b",
         ]
 
         for pattern in patterns:
-            match = re.search(pattern, request, re.IGNORECASE)
+
+            match = re.search(
+                pattern,
+                request,
+                re.IGNORECASE
+            )
 
             if match:
-                output_name = match.group(1)
+                return cls._validate_dataset_name(match.group(1))
 
-                if not re.fullmatch(
-                    r"[A-Za-z][A-Za-z0-9_]{0,159}",
-                    output_name
-                ):
-                    raise ValueError(
-                        f"Invalid output dataset name: {output_name}"
-                    )
+        return "USER_SELECT_REQUIRED"
 
-                return output_name
+    @classmethod
+    def extract_output_name(cls, request: str):
 
-        return GISPlanningAgent.DEFAULT_OUTPUT_NAME
+        patterns = [
+            rf"\bsave\s+(?:the\s+)?output\s+as\s+({cls.DATASET_NAME_PATTERN})\b",
+
+            rf"\boutput(?:\s+name)?\s*(?:is|:|=)\s*({cls.DATASET_NAME_PATTERN})\b",
+
+            rf"\bcreate\s+(?:the\s+)?output\s+named\s+({cls.DATASET_NAME_PATTERN})\b",
+
+            rf"\b([A-Za-z][A-Za-z0-9_]{{0,62}})\s+as\s+(?:the\s+)?output\b",
+
+            rf"\bsave\s+(?:it\s+)?as\s+({cls.DATASET_NAME_PATTERN})\b",
+        ]
+
+        for pattern in patterns:
+
+            match = re.search(
+                pattern,
+                request,
+                re.IGNORECASE
+            )
+
+            if match:
+                return cls._validate_dataset_name(match.group(1))
+
+        return cls.DEFAULT_OUTPUT_NAME
+
+    def __init__(self):
+        self.registry = OperationRegistry()
 
     def plan(self, user_request: str) -> GISWorkflow:
 
@@ -70,11 +103,9 @@ class GISPlanningAgent:
 
         normalized = request.lower()
 
-        # Initial supported intent: Buffer
         if "buffer" not in normalized:
             raise ValueError(
-                "This initial planner supports buffer workflows only. "
-                "Additional GIS operations will be added incrementally."
+                "This initial planner supports buffer workflows only."
             )
 
         distance_match = re.search(
@@ -85,7 +116,8 @@ class GISPlanningAgent:
 
         if not distance_match:
             raise ValueError(
-                "Please specify a buffer distance, for example 500 meters."
+                "Please specify a buffer distance, "
+                "for example 500 meters."
             )
 
         distance_value = float(distance_match.group(1))
@@ -101,7 +133,6 @@ class GISPlanningAgent:
             "kilometers": "Kilometers",
             "km": "Kilometers",
             "feet": "Feet",
-            "foot": "Feet",
             "ft": "Feet"
         }
 
@@ -118,9 +149,9 @@ class GISPlanningAgent:
             else "NONE"
         )
 
+        input_name = self.extract_input_name(request)
         output_name = self.extract_output_name(request)
 
-        # Confirm that the operation exists in the registry.
         self.registry.get_operation("buffer")
 
         step = WorkflowStep(
@@ -128,7 +159,7 @@ class GISPlanningAgent:
             operation_id="buffer",
             description="Create a buffer around the selected input features.",
             inputs={
-                "input_features": "USER_SELECT_REQUIRED"
+                "input_features": input_name
             },
             parameters={
                 "distance": distance,
@@ -149,10 +180,12 @@ class GISPlanningAgent:
             approval_required=True,
             metadata={
                 "planner": "deterministic",
-                "planner_version": "0.2.0",
-                "requires_user_input": [
-                    "input_features"
-                ]
+                "planner_version": self.PLANNER_VERSION,
+                "requires_user_input": (
+                    ["input_features"]
+                    if input_name == "USER_SELECT_REQUIRED"
+                    else []
+                )
             }
         )
 

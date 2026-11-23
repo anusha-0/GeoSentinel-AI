@@ -159,3 +159,62 @@ pip-wheel-metadata/
 *.local.json
 *.local.yaml
 *.local.yml
+
+# ==========================================
+# Python environments
+# ==========================================
+.venv/
+.venv-*/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyd
+
+# ==========================================
+# Python testing and tooling
+# ==========================================
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# Frontend dependencies and builds
+# ==========================================
+node_modules/
+dist/
+build/
+coverage/
+
+# ==========================================
+# Environment variables and secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# GeoSentinel runtime artifacts
+# ==========================================
+runtime/
+*.sqlite-wal
+*.sqlite-shm
+
+# ==========================================
+# Logs and temporary files
+# ==========================================
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Local GIS data and temporary locks
+# ==========================================
+*.gdb/
+*.sde
+*.lock
